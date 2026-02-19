@@ -1,0 +1,39 @@
+[project]
+name = "email-responder"
+version = "0.1.0"
+description = "AI-powered Gmail inbox manager: classifies emails, drafts replies, sends newsletter digest via Telegram"
+readme = "README.md"
+requires-python = "==3.12.*"
+dependencies = [
+    "google-api-python-client>=2.0",
+    "google-auth-oauthlib>=1.0",
+    "google-auth-httplib2>=0.1",
+    "google-genai>=1.0",
+    "pydantic>=2.0",
+    "pydantic-settings>=2.0",
+    "loguru>=0.7",
+    "httpx>=0.27",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.1.0",
+    "mypy>=1.2",
+    "pytest>=8.0",
+    "pytest-mock>=3.0",
+]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+ignore_missing_imports = true
+
+[tool.ruff]
+line-length = 88
+exclude = ["node_modules", "*.egg-info", ".git", ".mypy_cache", ".ruff_cache"]
+lint.select = ["E", "F", "I"]
+lint.ignore = ["E501"]  # LLM prompts have long lines that can't be meaningfully wrapped
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

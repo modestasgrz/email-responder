@@ -1,0 +1,9 @@
+.mypy_cache
+.ruff_cache
+.pytest_cache
+.venv
+__pycache__
+*/__pycache__/*
+
+TODO
+CLAUDE.md
