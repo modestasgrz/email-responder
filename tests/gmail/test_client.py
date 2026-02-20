@@ -1,7 +1,26 @@
 import base64
+from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
 from src.gmail.client import GmailClient
+from src.gmail.models import Email
+
+
+def _encoded(text: str) -> str:
+    return base64.urlsafe_b64encode(text.encode()).decode()
+
+
+def _make_email(**kwargs: object) -> Email:
+    defaults: dict[str, object] = {
+        "message_id": "msg1",
+        "thread_id": "thread1",
+        "sender": "from@example.com",
+        "subject": "Test",
+        "body": "Hello",
+        "received_at": datetime(2024, 1, 1, tzinfo=timezone.utc),
+    }
+    defaults.update(kwargs)
+    return Email(**defaults)  # type: ignore[arg-type]
 
 
 def _make_raw_message(
@@ -144,7 +163,7 @@ def test_add_label_creates_label_if_missing() -> None:
 
 def test_add_label_caches_label_id() -> None:
     mock_service = MagicMock()
-    mock_service.users().labels().list().execute.return_value = {
+    mock_service.users().labels().list.return_value.execute.return_value = {
         "labels": [{"id": "Label_1", "name": "AI/Spam"}]
     }
     mock_service.users().messages().modify().execute.return_value = {}
@@ -155,3 +174,130 @@ def test_add_label_caches_label_id() -> None:
 
     # labels.list should only be called once (second call hits cache)
     assert mock_service.users().labels().list.call_count == 1
+
+
+# --- _extract_body tests ---
+
+
+def test_extract_body_multipart_alternative_prefers_plain() -> None:
+    client = _make_client(MagicMock())
+    payload = {
+        "mimeType": "multipart/alternative",
+        "parts": [
+            {"mimeType": "text/plain", "body": {"data": _encoded("Plain text content")}},
+            {"mimeType": "text/html", "body": {"data": _encoded("<p>HTML content</p>")}},
+        ],
+    }
+    assert client._extract_body(payload) == "Plain text content"
+
+
+def test_extract_body_multipart_alternative_html_fallback() -> None:
+    client = _make_client(MagicMock())
+    payload = {
+        "mimeType": "multipart/alternative",
+        "parts": [
+            {"mimeType": "text/html", "body": {"data": _encoded("<p>Newsletter content</p>")}},
+        ],
+    }
+    result = client._extract_body(payload)
+    assert "Newsletter content" in result
+    assert "<p>" not in result
+
+
+def test_extract_body_multipart_mixed_collects_all_parts() -> None:
+    client = _make_client(MagicMock())
+    payload = {
+        "mimeType": "multipart/mixed",
+        "parts": [
+            {"mimeType": "text/plain", "body": {"data": _encoded("Section one")}},
+            {"mimeType": "text/plain", "body": {"data": _encoded("Section two")}},
+        ],
+    }
+    result = client._extract_body(payload)
+    assert "Section one" in result
+    assert "Section two" in result
+
+
+def test_extract_body_nested_multipart() -> None:
+    client = _make_client(MagicMock())
+    payload = {
+        "mimeType": "multipart/mixed",
+        "parts": [
+            {
+                "mimeType": "multipart/alternative",
+                "parts": [
+                    {"mimeType": "text/plain", "body": {"data": _encoded("Plain section")}},
+                    {"mimeType": "text/html", "body": {"data": _encoded("<p>HTML section</p>")}},
+                ],
+            },
+            {"mimeType": "text/plain", "body": {"data": _encoded("Attachment text")}},
+        ],
+    }
+    result = client._extract_body(payload)
+    assert "Plain section" in result
+    assert "Attachment text" in result
+    assert "<p>" not in result
+
+
+def test_extract_body_html_only_flat() -> None:
+    client = _make_client(MagicMock())
+    payload = {
+        "mimeType": "text/html",
+        "body": {"data": _encoded("<h1>Title</h1><p>Body text</p>")},
+    }
+    result = client._extract_body(payload)
+    assert "Title" in result
+    assert "Body text" in result
+    assert "<h1>" not in result
+
+
+def test_extract_body_ignores_image_parts() -> None:
+    client = _make_client(MagicMock())
+    payload = {
+        "mimeType": "multipart/mixed",
+        "parts": [
+            {"mimeType": "text/plain", "body": {"data": _encoded("Some text")}},
+            {"mimeType": "image/jpeg", "body": {"data": "base64imagedata=="}},
+        ],
+    }
+    assert client._extract_body(payload) == "Some text"
+
+
+# --- GmailClient.create_draft delegation test ---
+
+
+def test_client_create_draft_delegates_to_draft_creator() -> None:
+    mock_service = MagicMock()
+    mock_service.users().drafts().create.return_value.execute.return_value = {"id": "draft_xyz"}
+
+    client = _make_client(mock_service)
+    draft_id = client.create_draft(_make_email(), "My reply")
+
+    assert draft_id == "draft_xyz"
+    mock_service.users().drafts().create.assert_called_once()
+
+
+# --- Token refresh path test ---
+
+
+def test_authenticate_refreshes_expired_credentials() -> None:
+    mock_service = MagicMock()
+    with (
+        patch("src.gmail.client.Path") as mock_path_cls,
+        patch("src.gmail.client.Credentials") as mock_creds_cls,
+        patch("src.gmail.client.Request") as mock_request_cls,
+        patch("src.gmail.client.build", return_value=mock_service),
+    ):
+        mock_path = MagicMock()
+        mock_path.exists.return_value = True
+        mock_path_cls.return_value = mock_path
+
+        mock_creds = MagicMock()
+        mock_creds.valid = False
+        mock_creds.expired = True
+        mock_creds.refresh_token = "refresh_tok"
+        mock_creds_cls.from_authorized_user_file.return_value = mock_creds
+
+        GmailClient("credentials.json", "token.json")
+
+        mock_creds.refresh.assert_called_once_with(mock_request_cls.return_value)

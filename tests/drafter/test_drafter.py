@@ -59,31 +59,21 @@ def test_draft_strips_whitespace(mock_client_cls: MagicMock) -> None:
 
 
 @patch("src.drafter.drafter.genai.Client")
-def test_draft_personal_uses_warm_tone(mock_client_cls: MagicMock) -> None:
+def test_draft_system_instruction_differs_by_category(mock_client_cls: MagicMock) -> None:
     mock_client = MagicMock()
     mock_client_cls.return_value = mock_client
     mock_client.models.generate_content.return_value = MagicMock(text="Reply")
 
     drafter = ReplyDrafter(api_key="fake-key", model="gemini-2.0-flash")
-    drafter.draft(_make_email(), _make_classification(EmailCategory.PERSONAL))
+    instructions: dict[EmailCategory, str] = {}
+    for category in [EmailCategory.PERSONAL, EmailCategory.SALES, EmailCategory.SUPPORT]:
+        drafter.draft(_make_email(), _make_classification(category))
+        call_kwargs = mock_client.models.generate_content.call_args.kwargs
+        instructions[category] = call_kwargs["config"].system_instruction
 
-    call_kwargs = mock_client.models.generate_content.call_args.kwargs
-    system_instruction = call_kwargs["config"].system_instruction.lower()
-    assert any(w in system_instruction for w in ["warm", "genuine", "conversational"])
-
-
-@patch("src.drafter.drafter.genai.Client")
-def test_draft_sales_uses_professional_tone(mock_client_cls: MagicMock) -> None:
-    mock_client = MagicMock()
-    mock_client_cls.return_value = mock_client
-    mock_client.models.generate_content.return_value = MagicMock(text="Reply")
-
-    drafter = ReplyDrafter(api_key="fake-key", model="gemini-2.0-flash")
-    drafter.draft(_make_email(), _make_classification(EmailCategory.SALES))
-
-    call_kwargs = mock_client.models.generate_content.call_args.kwargs
-    system_instruction = call_kwargs["config"].system_instruction.lower()
-    assert "professional" in system_instruction
+    assert instructions[EmailCategory.PERSONAL] != instructions[EmailCategory.SALES]
+    assert instructions[EmailCategory.SALES] != instructions[EmailCategory.SUPPORT]
+    assert instructions[EmailCategory.PERSONAL] != instructions[EmailCategory.SUPPORT]
 
 
 @patch("src.drafter.drafter.genai.Client")

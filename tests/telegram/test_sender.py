@@ -20,10 +20,9 @@ def test_split_long_message_into_multiple_chunks() -> None:
 def test_split_all_chunks_contain_original_content() -> None:
     text = "First part\n\nSecond part\n\nThird part"
     chunks = _split_message(text, max_length=15)
-    rejoined = " ".join(chunks)
-    assert "First" in rejoined
-    assert "Second" in rejoined
-    assert "Third" in rejoined
+    assert "First part" in chunks
+    assert "Second part" in chunks
+    assert "Third part" in chunks
 
 
 def test_split_prefers_paragraph_boundary() -> None:

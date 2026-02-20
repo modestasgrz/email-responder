@@ -1,5 +1,6 @@
 import base64
 from datetime import datetime, timezone
+from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
 
@@ -13,6 +14,31 @@ from src.gmail.drafts import DraftCreator
 from src.gmail.models import Email
 
 _SCOPES = ["https://www.googleapis.com/auth/gmail.modify"]
+
+
+class _HTMLStripper(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__()
+        self._chunks: list[str] = []
+
+    def handle_data(self, data: str) -> None:
+        self._chunks.append(data)
+
+    def get_text(self) -> str:
+        return "".join(self._chunks).strip()
+
+
+def _strip_html(html_text: str) -> str:
+    stripper = _HTMLStripper()
+    stripper.feed(html_text)
+    return stripper.get_text()
+
+
+def _decode_part(part: dict[str, Any]) -> str:
+    data = part.get("body", {}).get("data", "")
+    if not data:
+        return ""
+    return base64.urlsafe_b64decode(data).decode("utf-8", errors="replace")
 
 
 class GmailClient:
@@ -83,26 +109,33 @@ class GmailClient:
         )
 
     def _extract_body(self, payload: dict[str, Any]) -> str:
+        mime = payload.get("mimeType", "")
         if "parts" in payload:
-            for part in payload["parts"]:
-                if part.get("mimeType") == "text/plain":
-                    data = part["body"].get("data", "")
-                    if data:
-                        return base64.urlsafe_b64decode(data).decode(
-                            "utf-8", errors="replace"
-                        )
-            for part in payload["parts"]:
-                text = self._extract_body(part)
-                if text:
-                    return text
+            if mime == "multipart/alternative":
+                # same content in two formats — prefer plain, fallback to html
+                for part in payload["parts"]:
+                    if part.get("mimeType") == "text/plain":
+                        text = _decode_part(part)
+                        if text:
+                            return text
+                for part in payload["parts"]:
+                    if part.get("mimeType") == "text/html":
+                        text = _decode_part(part)
+                        if text:
+                            return _strip_html(text)
+                return ""
+            else:
+                # multipart/mixed, multipart/related, etc — collect ALL parts
+                return "\n\n".join(
+                    t for part in payload["parts"] if (t := self._extract_body(part))
+                )
         else:
-            if payload.get("mimeType") == "text/plain":
-                data = payload.get("body", {}).get("data", "")
-                if data:
-                    return base64.urlsafe_b64decode(data).decode(
-                        "utf-8", errors="replace"
-                    )
-        return ""
+            if mime == "text/plain":
+                return _decode_part(payload)
+            if mime == "text/html":
+                text = _decode_part(payload)
+                return _strip_html(text) if text else ""
+            return ""
 
     def mark_read(self, message_id: str) -> None:
         self._service.users().messages().modify(
