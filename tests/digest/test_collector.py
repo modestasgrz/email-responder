@@ -1,8 +1,11 @@
 from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
-from src.digest.collector import NewsletterCollector, _NewsletterCategoryResult
-from src.digest.models import NewsletterCategory
+from src.digest.collector import (
+    NewsletterCategory,
+    NewsletterCollector,
+    _NewsletterCategoryResult,
+)
 from src.gmail.models import Email
 
 

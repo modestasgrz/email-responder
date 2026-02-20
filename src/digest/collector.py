@@ -1,9 +1,10 @@
+from enum import Enum
+
 from google import genai
 from google.genai import types
 from loguru import logger
 from pydantic import BaseModel
 
-from src.digest.models import NewsletterCategory
 from src.gmail.models import Email
 
 _CATEGORIZE_PROMPT = """Classify this newsletter email into exactly one category:
@@ -11,6 +12,12 @@ _CATEGORIZE_PROMPT = """Classify this newsletter email into exactly one category
 - tech_business: technology, programming, AI/ML, startups, business, finance, science, software
 - music: music releases, artists, concerts, music industry, streaming services, bands, record labels
 - other: sports, lifestyle, gaming, travel, food, art, politics, or anything not clearly tech or music"""
+
+
+class NewsletterCategory(str, Enum):
+    TECH_BUSINESS = "tech_business"
+    MUSIC = "music"
+    OTHER = "other"
 
 
 class _NewsletterCategoryResult(BaseModel):

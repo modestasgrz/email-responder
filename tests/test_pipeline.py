@@ -2,8 +2,7 @@ from datetime import datetime, timezone
 from unittest.mock import MagicMock
 
 from src.classifier.models import ClassificationResult, EmailCategory, EmailPriority
-from src.digest.collector import NewsletterCollector
-from src.digest.models import NewsletterCategory
+from src.digest.collector import NewsletterCategory, NewsletterCollector
 from src.digest.summarizer import DigestSummarizer
 from src.drafter.drafter import ReplyDrafter
 from src.gmail.client import GmailClient
@@ -156,7 +155,9 @@ def test_pipeline_collects_newsletter_and_sends_digest() -> None:
     assert result.digest_sent is True
     collector.add.assert_called_once_with(email)
     drafter.draft.assert_not_called()
-    telegram.send.assert_called_once_with("<b>Digest</b>")
+    # First call is digest, second is the stats report
+    assert telegram.send.call_count == 2
+    assert telegram.send.call_args_list[0].args[0] == "<b>Digest</b>"
 
 
 def test_pipeline_skips_digest_when_no_newsletters() -> None:
@@ -166,7 +167,9 @@ def test_pipeline_skips_digest_when_no_newsletters() -> None:
 
     assert result.digest_sent is False
     summarizer.compile.assert_not_called()
-    telegram.send.assert_not_called()
+    # No digest, but the stats report is still sent
+    telegram.send.assert_called_once()
+    assert "Pipeline Report" in telegram.send.call_args.args[0]
 
 
 def test_pipeline_continues_on_single_email_failure() -> None:
@@ -240,3 +243,24 @@ def test_pipeline_processes_multiple_emails() -> None:
     assert result.unknown_skipped == 1
     assert result.digest_sent is True
     assert result.errors == 0
+
+
+def test_pipeline_sends_stats_report_after_run() -> None:
+    emails = [_make_email("msg1"), _make_email("msg2")]
+    classifications = [
+        _make_classification(EmailCategory.SUPPORT, needs_reply=True),
+        _make_classification(EmailCategory.SPAM, needs_reply=False),
+    ]
+
+    pipeline, _, _, drafter, _, _, telegram = _make_pipeline(
+        emails=emails, classifications=classifications
+    )
+    drafter.draft.return_value = "Reply"
+
+    result = pipeline.run()
+
+    report_text = telegram.send.call_args_list[-1].args[0]
+    assert "Pipeline Report" in report_text
+    assert str(result.total_emails) in report_text
+    assert str(result.errors) in report_text
+    assert str(result.drafts_created) in report_text

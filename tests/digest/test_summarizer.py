@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
-from src.digest.models import NewsletterCategory
+from src.digest.collector import NewsletterCategory
 from src.digest.summarizer import DigestSummarizer
 from src.gmail.models import Email
 

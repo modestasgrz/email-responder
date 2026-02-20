@@ -2,7 +2,7 @@ from google import genai
 from google.genai import types
 from loguru import logger
 
-from src.digest.models import NewsletterCategory
+from src.digest.collector import NewsletterCategory
 from src.gmail.models import Email
 
 _SECTION_LABELS: dict[NewsletterCategory, str] = {

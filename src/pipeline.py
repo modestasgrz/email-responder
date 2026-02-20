@@ -29,6 +29,19 @@ class PipelineResult(BaseModel):
     digest_sent: bool = False
 
 
+def _format_report(result: PipelineResult) -> str:
+    succeeded = result.total_emails - result.errors
+    return (
+        f"📊 <b>Pipeline Report</b>\n\n"
+        f"📬 Found: {result.total_emails}\n"
+        f"✅ Processed: {succeeded}\n"
+        f"❌ Failed: {result.errors}\n"
+        f"📝 Drafts created: {result.drafts_created}\n"
+        f"📰 Newsletters: {result.newsletters_collected}\n"
+        f"📤 Digest sent: {'Yes' if result.digest_sent else 'No'}"
+    )
+
+
 class Pipeline:
     def __init__(
         self,
@@ -103,6 +116,11 @@ class Pipeline:
                     result.digest_sent = True
             except Exception as e:
                 logger.error(f"Failed to send digest: {e}")
+
+        try:
+            self._telegram.send(_format_report(result))
+        except Exception as e:
+            logger.error(f"Failed to send pipeline report: {e}")
 
         logger.info(
             f"Pipeline complete: {result.total_emails} emails, "
