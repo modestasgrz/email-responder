@@ -66,7 +66,7 @@ def _make_client(mock_service: MagicMock) -> GmailClient:
 
 def test_fetch_unread_returns_emails() -> None:
     mock_service = MagicMock()
-    mock_service.users().messages().list().execute.return_value = {
+    mock_service.users().messages().list.return_value.execute.return_value = {
         "messages": [{"id": "msg1"}]
     }
     mock_service.users().messages().get().execute.return_value = _make_raw_message(
@@ -76,6 +76,9 @@ def test_fetch_unread_returns_emails() -> None:
     client = _make_client(mock_service)
     emails = client.fetch_unread()
 
+    mock_service.users().messages().list.assert_called_once_with(
+        userId="me", q="is:unread"
+    )
     assert len(emails) == 1
     assert emails[0].message_id == "msg1"
     assert emails[0].sender == "from@example.com"
@@ -126,6 +129,7 @@ def test_mark_read_removes_unread_label() -> None:
         id="msg1",
         body={"removeLabelIds": ["UNREAD"]},
     )
+    mock_service.users().messages().modify.return_value.execute.assert_called_once()
 
 
 def test_add_label_uses_existing_label() -> None:
@@ -184,8 +188,14 @@ def test_extract_body_multipart_alternative_prefers_plain() -> None:
     payload = {
         "mimeType": "multipart/alternative",
         "parts": [
-            {"mimeType": "text/plain", "body": {"data": _encoded("Plain text content")}},
-            {"mimeType": "text/html", "body": {"data": _encoded("<p>HTML content</p>")}},
+            {
+                "mimeType": "text/plain",
+                "body": {"data": _encoded("Plain text content")},
+            },
+            {
+                "mimeType": "text/html",
+                "body": {"data": _encoded("<p>HTML content</p>")},
+            },
         ],
     }
     assert client._extract_body(payload) == "Plain text content"
@@ -196,7 +206,10 @@ def test_extract_body_multipart_alternative_html_fallback() -> None:
     payload = {
         "mimeType": "multipart/alternative",
         "parts": [
-            {"mimeType": "text/html", "body": {"data": _encoded("<p>Newsletter content</p>")}},
+            {
+                "mimeType": "text/html",
+                "body": {"data": _encoded("<p>Newsletter content</p>")},
+            },
         ],
     }
     result = client._extract_body(payload)
@@ -226,8 +239,14 @@ def test_extract_body_nested_multipart() -> None:
             {
                 "mimeType": "multipart/alternative",
                 "parts": [
-                    {"mimeType": "text/plain", "body": {"data": _encoded("Plain section")}},
-                    {"mimeType": "text/html", "body": {"data": _encoded("<p>HTML section</p>")}},
+                    {
+                        "mimeType": "text/plain",
+                        "body": {"data": _encoded("Plain section")},
+                    },
+                    {
+                        "mimeType": "text/html",
+                        "body": {"data": _encoded("<p>HTML section</p>")},
+                    },
                 ],
             },
             {"mimeType": "text/plain", "body": {"data": _encoded("Attachment text")}},
@@ -268,7 +287,9 @@ def test_extract_body_ignores_image_parts() -> None:
 
 def test_client_create_draft_delegates_to_draft_creator() -> None:
     mock_service = MagicMock()
-    mock_service.users().drafts().create.return_value.execute.return_value = {"id": "draft_xyz"}
+    mock_service.users().drafts().create.return_value.execute.return_value = {
+        "id": "draft_xyz"
+    }
 
     client = _make_client(mock_service)
     draft_id = client.create_draft(_make_email(), "My reply")
