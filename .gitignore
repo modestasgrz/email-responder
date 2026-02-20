@@ -4,6 +4,10 @@
 .venv
 __pycache__
 */__pycache__/*
+.env
+token.json
+credentials.json
 
 TODO
 CLAUDE.md
+LAUNCH.md

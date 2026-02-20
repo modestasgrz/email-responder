@@ -42,7 +42,7 @@ def main() -> None:
     )
     telegram_sender = TelegramSender(
         bot_token=config.telegram_bot_token.get_secret_value(),
-        chat_id=config.telegram_chat_id,
+        chat_id=config.telegram_chat_id.get_secret_value(),
     )
 
     pipeline = Pipeline(

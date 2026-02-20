@@ -64,16 +64,18 @@ class GmailClient:
                     self._credentials_path, _SCOPES
                 )
                 creds = flow.run_local_server(port=0)
-            token_path.write_text(creds.to_json())
+            try:
+                token_path.write_text(creds.to_json())
+            except OSError:
+                logger.debug(
+                    "Token path is read-only, skipping write-back (normal in Cloud Run)"
+                )
 
         return build("gmail", "v1", credentials=creds)
 
     def fetch_unread(self) -> list[Email]:
         result = (
-            self._service.users()
-            .messages()
-            .list(userId="me", q="is:unread")
-            .execute()
+            self._service.users().messages().list(userId="me", q="is:unread").execute()
         )
         message_refs: list[dict[str, str]] = result.get("messages", [])
 

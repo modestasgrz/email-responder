@@ -19,5 +19,5 @@ class Settings(BaseSettings):
     gemini_api_key: SecretStr
     gemini_model: str = "gemini-3-flash-preview"
     telegram_bot_token: SecretStr
-    telegram_chat_id: str
+    telegram_chat_id: SecretStr
     log_level: str = "INFO"
