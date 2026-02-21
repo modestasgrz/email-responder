@@ -5,6 +5,7 @@ from loguru import logger
 from src.classifier.models import ClassificationResult, EmailCategory
 from src.config import EMAIL_BODY_MAX_CHARS
 from src.gmail.models import Email
+from src.utils.retry import gemini_retry
 
 _TONE_BY_CATEGORY: dict[EmailCategory, str] = {
     EmailCategory.SUPPORT: (
@@ -33,6 +34,7 @@ class ReplyDrafter:
         self._client = genai.Client(api_key=api_key)
         self._model = model
 
+    @gemini_retry
     def draft(self, email: Email, classification: ClassificationResult) -> str:
         tone = _TONE_BY_CATEGORY.get(
             classification.category,

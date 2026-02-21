@@ -2,6 +2,8 @@
 #
 # Development: ruff (lint/format), mypy (type check), pytest (test).
 # Deployment: Docker → Artifact Registry → Cloud Run Jobs.
+
+SHELL := /bin/bash
 #
 # Prerequisites (one-time):
 #   gcloud auth login
@@ -62,7 +64,7 @@ gcp-setup:
 ## Build Docker image and push to Artifact Registry
 build:
 	@echo "Building Docker image..."
-	docker build -t $(IMAGE) .
+	docker build --platform linux/amd64 -t $(IMAGE) .
 	@echo "Pushing image to Artifact Registry..."
 	docker push $(IMAGE)
 
@@ -106,10 +108,10 @@ deploy: build
 		--set-secrets=GEMINI_API_KEY=gemini-api-key:latest \
 		--set-secrets=TELEGRAM_BOT_TOKEN=telegram-bot-token:latest \
 		--set-secrets=TELEGRAM_CHAT_ID=telegram-chat-id:latest \
-		--set-secrets=/run/secrets/gmail/credentials.json=gmail-credentials:latest \
-		--set-secrets=/run/secrets/gmail/token.json=gmail-token:latest \
-		--set-env-vars=GMAIL_CREDENTIALS_PATH=/run/secrets/gmail/credentials.json \
-		--set-env-vars=GMAIL_TOKEN_PATH=/run/secrets/gmail/token.json
+		--set-secrets=/run/secrets/gmail-credentials/credentials.json=gmail-credentials:latest \
+		--set-secrets=/run/secrets/gmail-token/token.json=gmail-token:latest \
+		--set-env-vars=GMAIL_CREDENTIALS_PATH=/run/secrets/gmail-credentials/credentials.json \
+		--set-env-vars=GMAIL_TOKEN_PATH=/run/secrets/gmail-token/token.json
 
 ## Execute the Cloud Run Job now (one-off trigger)
 run:

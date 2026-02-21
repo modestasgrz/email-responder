@@ -135,8 +135,25 @@ def test_pipeline_skips_unknown() -> None:
     assert result.unknown_skipped == 1
     assert result.drafts_created == 0
     drafter.draft.assert_not_called()
-    gmail.mark_read.assert_called_once_with(email.message_id)
+    gmail.mark_read.assert_not_called()  # left unread for manual review
     gmail.add_label.assert_called_once_with(email.message_id, "AI/Unknown")
+
+
+def test_pipeline_skips_invoice() -> None:
+    email = _make_email(subject="Your invoice #1234 — payment due")
+    classification = _make_classification(EmailCategory.INVOICE, needs_reply=False)
+
+    pipeline, gmail, _, drafter, _, _, _ = _make_pipeline(
+        emails=[email], classifications=[classification]
+    )
+
+    result = pipeline.run()
+
+    assert result.invoice_skipped == 1
+    assert result.drafts_created == 0
+    drafter.draft.assert_not_called()
+    gmail.mark_read.assert_not_called()  # left unread — requires payment action
+    gmail.add_label.assert_called_once_with(email.message_id, "AI/Invoice")
 
 
 def test_pipeline_collects_newsletter_and_sends_digest() -> None:
@@ -215,12 +232,14 @@ def test_pipeline_processes_multiple_emails() -> None:
         _make_email("msg3", "Spam"),
         _make_email("msg4", "Newsletter"),
         _make_email("msg5", "Your invoice #1234"),
+        _make_email("msg6", "Booking confirmation"),
     ]
     classifications = [
         _make_classification(EmailCategory.SUPPORT, needs_reply=True),
         _make_classification(EmailCategory.SALES, needs_reply=True),
         _make_classification(EmailCategory.SPAM, needs_reply=False),
         _make_classification(EmailCategory.NEWSLETTER, needs_reply=False),
+        _make_classification(EmailCategory.INVOICE, needs_reply=False),
         _make_classification(EmailCategory.UNKNOWN, needs_reply=False),
     ]
 
@@ -236,10 +255,11 @@ def test_pipeline_processes_multiple_emails() -> None:
 
     result = pipeline.run()
 
-    assert result.total_emails == 5
+    assert result.total_emails == 6
     assert result.drafts_created == 2
     assert result.spam_skipped == 1
     assert result.newsletters_collected == 1
+    assert result.invoice_skipped == 1
     assert result.unknown_skipped == 1
     assert result.digest_sent is True
     assert result.errors == 0

@@ -32,8 +32,9 @@ def _split_message(text: str, max_length: int = _MAX_LENGTH) -> list[str]:
 
 class TelegramSender:
     def __init__(self, bot_token: str, chat_id: str) -> None:
-        self._chat_id = chat_id
-        self._url = _TELEGRAM_API.format(token=bot_token)
+        # Strip whitespaces for possible ValueError(s)
+        self._chat_id = chat_id.strip()
+        self._url = _TELEGRAM_API.format(token=bot_token.strip())
 
     def send(self, text: str) -> None:
         chunks = _split_message(text)
@@ -53,4 +54,8 @@ class TelegramSender:
                     "disable_web_page_preview": True,
                 },
             )
+            if not response.is_success:
+                logger.error(
+                    f"Telegram API error {response.status_code}: {response.text}"
+                )
             response.raise_for_status()

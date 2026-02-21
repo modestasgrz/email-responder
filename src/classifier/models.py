@@ -9,7 +9,8 @@ class EmailCategory(str, Enum):
     SPAM = "spam"
     NEWSLETTER = "newsletter"
     PERSONAL = "personal"
-    UNKNOWN = "unknown"  # invoices, bookings, receipts, review requests — skipped
+    INVOICE = "invoice"  # payment CTA — housing tax, insurance, digital subscriptions
+    UNKNOWN = "unknown"  # bookings, receipts, review requests, automated notifications
 
 
 class EmailPriority(str, Enum):

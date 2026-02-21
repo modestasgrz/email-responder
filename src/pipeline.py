@@ -15,6 +15,7 @@ _CATEGORY_LABEL: dict[EmailCategory, str] = {
     EmailCategory.SPAM: "AI/Spam",
     EmailCategory.NEWSLETTER: "AI/Newsletter",
     EmailCategory.PERSONAL: "AI/Personal",
+    EmailCategory.INVOICE: "AI/Invoice",
     EmailCategory.UNKNOWN: "AI/Unknown",
 }
 
@@ -24,6 +25,7 @@ class PipelineResult(BaseModel):
     drafts_created: int = 0
     newsletters_collected: int = 0
     spam_skipped: int = 0
+    invoice_skipped: int = 0
     unknown_skipped: int = 0
     errors: int = 0
     digest_sent: bool = False
@@ -38,6 +40,7 @@ def _format_report(result: PipelineResult) -> str:
         f"❌ Failed: {result.errors}\n"
         f"📝 Drafts created: {result.drafts_created}\n"
         f"📰 Newsletters: {result.newsletters_collected}\n"
+        f"🧾 Invoices (unread): {result.invoice_skipped}\n"
         f"📤 Digest sent: {'Yes' if result.digest_sent else 'No'}"
     )
 
@@ -83,8 +86,14 @@ class Pipeline:
                     result.newsletters_collected += 1
                     logger.info(f"Newsletter collected: {email.subject!r}")
 
+                elif classification.category == EmailCategory.INVOICE:
+                    # Leave unread — requires manual payment action
+                    self._gmail.add_label(email.message_id, label)
+                    result.invoice_skipped += 1
+                    logger.info(f"Invoice left unread: {email.subject!r}")
+
                 elif classification.category == EmailCategory.UNKNOWN:
-                    self._gmail.mark_read(email.message_id)
+                    # Leave unread — manual review
                     self._gmail.add_label(email.message_id, label)
                     result.unknown_skipped += 1
                     logger.info(f"Unknown email skipped: {email.subject!r}")
@@ -127,6 +136,7 @@ class Pipeline:
             f"{result.drafts_created} drafts, "
             f"{result.newsletters_collected} newsletters, "
             f"{result.spam_skipped} spam, "
+            f"{result.invoice_skipped} invoices, "
             f"{result.unknown_skipped} unknown, "
             f"{result.errors} errors"
         )

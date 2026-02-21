@@ -5,6 +5,7 @@ from loguru import logger
 from src.classifier.models import ClassificationResult
 from src.config import EMAIL_BODY_MAX_CHARS
 from src.gmail.models import Email
+from src.utils.retry import gemini_retry
 
 _SYSTEM_PROMPT = """You are an email classifier. Classify each email into exactly one of these categories:
 
@@ -13,11 +14,12 @@ _SYSTEM_PROMPT = """You are an email classifier. Classify each email into exactl
 - spam: Unsolicited mass email, phishing, irrelevant promotions, or automated junk
 - newsletter: Subscription-based content digests, blog updates, industry news, or product announcements
 - personal: Direct communication from a real person who knows you — colleagues, friends, family, or professional contacts
-- unknown: Transactional emails that don't fit the above — invoices, order confirmations, flight/hotel bookings, receipts, review requests, automated notifications etc
+- invoice: Emails requiring a payment action from the recipient — housing tax bills, insurance premiums, utility bills, digital service invoices (SaaS, hosting, streaming), or any email with a clear "pay now" / "payment due" CTA
+- unknown: Transactional emails that don't fit the above — order confirmations, flight/hotel bookings, receipts, review requests, automated notifications etc
 
 For needs_reply:
 - True for support, sales, personal (unless clearly automated/no-reply)
-- False for spam, newsletter, and unknown
+- False for spam, newsletter, invoice, and unknown
 - False for automated notifications even if categorized as personal
 
 Be concise: summary is one sentence, reasoning is one sentence."""
@@ -28,6 +30,7 @@ class EmailClassifier:
         self._client = genai.Client(api_key=api_key)
         self._model = model
 
+    @gemini_retry
     def classify(self, email: Email) -> ClassificationResult:
         prompt = (
             f"From: {email.sender}\n"

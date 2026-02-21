@@ -6,6 +6,7 @@ from loguru import logger
 from pydantic import BaseModel
 
 from src.gmail.models import Email
+from src.utils.retry import gemini_retry
 
 _CATEGORIZE_PROMPT = """Classify this newsletter email into exactly one category:
 
@@ -35,13 +36,14 @@ class NewsletterCollector:
         }
 
     def add(self, email: Email) -> None:
-        category = self._categorize(email)
+        category = self.categorize(email)
         self._items[category].append(email)
         logger.debug(
             f"Collected newsletter {email.message_id} as {category} ({email.subject!r})"
         )
 
-    def _categorize(self, email: Email) -> NewsletterCategory:
+    @gemini_retry
+    def categorize(self, email: Email) -> NewsletterCategory:
         prompt = f"From: {email.sender}\nSubject: {email.subject}\n\n{email.body[:500]}"
         try:
             response = self._client.models.generate_content(

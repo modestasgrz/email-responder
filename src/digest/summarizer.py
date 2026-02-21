@@ -4,6 +4,7 @@ from loguru import logger
 
 from src.digest.collector import NewsletterCategory
 from src.gmail.models import Email
+from src.utils.retry import gemini_retry
 
 _SECTION_LABELS: dict[NewsletterCategory, str] = {
     NewsletterCategory.TECH_BUSINESS: "Tech & Business",
@@ -44,6 +45,7 @@ class DigestSummarizer:
         self._client = genai.Client(api_key=api_key)
         self._model = model
 
+    @gemini_retry
     def compile(self, sections: list[tuple[NewsletterCategory, list[Email]]]) -> str:
         if not sections:
             return ""
