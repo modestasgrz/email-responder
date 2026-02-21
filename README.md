@@ -22,8 +22,9 @@ Fetch unread emails from Gmail
   → Send digest + pipeline report to Telegram
 ```
 
-![Pipeline report message](screenshots/pipeline-report.png)
-![Telegram digest message](screenshots/telegram-digest.png)
+| Report | Digest |
+| --- | --- |
+| ![Pipeline report message](screenshots/report.jpg) | ![Telegram digest message](screenshots/digest.jpg) |
 
 ---
 
