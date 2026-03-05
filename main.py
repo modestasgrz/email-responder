@@ -23,6 +23,8 @@ def main() -> None:
     gmail_client = GmailClient(
         credentials_path=config.gmail_credentials_path,
         token_path=config.gmail_token_path,
+        token_secret_name=config.gmail_token_secret_name,
+        gcp_project_id=config.gcp_project_id,
     )
     classifier = EmailClassifier(
         api_key=config.gemini_api_key.get_secret_value(),

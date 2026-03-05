@@ -16,6 +16,8 @@ class Settings(BaseSettings):
 
     gmail_credentials_path: str = "credentials.json"
     gmail_token_path: str = "token.json"
+    gmail_token_secret_name: str | None = None
+    gcp_project_id: str | None = None
     gemini_api_key: SecretStr
     gemini_model: str = "gemini-3-flash-preview"
     telegram_bot_token: SecretStr

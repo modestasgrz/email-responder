@@ -89,12 +89,16 @@ secrets-create:
 		--data-file=token.json
 	@echo "Done. Grant Cloud Run access with: make secrets-iam"
 
-## Grant the default Compute service account access to read secrets
+## Grant the default Compute service account access to read and write secrets
 secrets-iam:
 	gcloud projects add-iam-policy-binding $(GCP_PROJECT) \
 		--member="serviceAccount:$$(gcloud projects describe $(GCP_PROJECT) \
 			--format='value(projectNumber)')"-compute@developer.gserviceaccount.com \
 		--role="roles/secretmanager.secretAccessor"
+	gcloud projects add-iam-policy-binding $(GCP_PROJECT) \
+		--member="serviceAccount:$$(gcloud projects describe $(GCP_PROJECT) \
+			--format='value(projectNumber)')"-compute@developer.gserviceaccount.com \
+		--role="roles/secretmanager.secretVersionAdder"
 
 ## Deploy Cloud Run Job from the pushed image
 ## Secrets must exist in Secret Manager first (run `make secrets-create` once):
@@ -111,7 +115,9 @@ deploy: build
 		--set-secrets=/run/secrets/gmail-credentials/credentials.json=gmail-credentials:latest \
 		--set-secrets=/run/secrets/gmail-token/token.json=gmail-token:latest \
 		--set-env-vars=GMAIL_CREDENTIALS_PATH=/run/secrets/gmail-credentials/credentials.json \
-		--set-env-vars=GMAIL_TOKEN_PATH=/run/secrets/gmail-token/token.json
+		--set-env-vars=GMAIL_TOKEN_PATH=/run/secrets/gmail-token/token.json \
+		--set-env-vars=GMAIL_TOKEN_SECRET_NAME=gmail-token \
+		--set-env-vars=GCP_PROJECT_ID=$(GCP_PROJECT)
 
 ## Execute the Cloud Run Job now (one-off trigger)
 run:

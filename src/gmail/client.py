@@ -42,9 +42,17 @@ def _decode_part(part: dict[str, Any]) -> str:
 
 
 class GmailClient:
-    def __init__(self, credentials_path: str, token_path: str) -> None:
+    def __init__(
+        self,
+        credentials_path: str,
+        token_path: str,
+        token_secret_name: str | None = None,
+        gcp_project_id: str | None = None,
+    ) -> None:
         self._credentials_path = credentials_path
         self._token_path = token_path
+        self._token_secret_name = token_secret_name
+        self._gcp_project_id = gcp_project_id
         self._service: Any = self._authenticate()
         self._draft_creator = DraftCreator(self._service)
         self._label_cache: dict[str, str] = {}
@@ -58,7 +66,15 @@ class GmailClient:
 
         if not creds or not creds.valid:
             if creds and creds.expired and creds.refresh_token:
+                original_refresh_token: str | None = creds.refresh_token
                 creds.refresh(Request())
+                if (
+                    original_refresh_token
+                    and creds.refresh_token != original_refresh_token
+                    and self._token_secret_name
+                    and self._gcp_project_id
+                ):
+                    self._write_token_to_secret_manager(creds.to_json())
             else:
                 flow = InstalledAppFlow.from_client_secrets_file(
                     self._credentials_path, _SCOPES
@@ -72,6 +88,19 @@ class GmailClient:
                 )
 
         return build("gmail", "v1", credentials=creds)
+
+    def _write_token_to_secret_manager(self, token_json: str) -> None:
+        from google.cloud import secretmanager
+
+        client = secretmanager.SecretManagerServiceClient()
+        parent = f"projects/{self._gcp_project_id}/secrets/{self._token_secret_name}"
+        try:
+            client.add_secret_version(
+                request={"parent": parent, "payload": {"data": token_json.encode()}}
+            )
+            logger.info("Rotated refresh token written back to Secret Manager")
+        except Exception as e:
+            logger.error(f"Failed to write rotated token to Secret Manager: {e}")
 
     def fetch_unread(self) -> list[Email]:
         result = (
